@@ -1,0 +1,167 @@
+
+class FirstOrderModel:
+    
+    def __init__(self, coeffs, system):
+        from math import exp
+        
+        self._system = system
+        self._INF = 10**8 # discrete infinity
+        self._a = 2.0
+        
+        self._a1, self._a2, self._T1, self._T2, self._T3, self._tau = coeffs
+        
+        self._func = {}
+        
+        self._func['K1'] = lambda t: -(self._T1*self._a1*exp(-t/self._T1) - self._T1*self._a1 \
+                                       + self._a1*t*exp(-t/self._T1)) / self._T1
+        
+        self._func['K2'] = lambda t: -(self._T1*self._a1*exp(-t/self._T1) - self._T1*self._a1 \
+                                       + self._a1*t*exp(-t/self._T1))
+        
+        self._func['K3'] = lambda t: (self._T1*self._a1*self._a2 - self._T2*self._a1*self._a2 \
+                                       - self._T1*self._a1*self._a2*exp(-t/self._T1) \
+                                       + self._T2*self._a1*self._a2*exp(-t/self._T2)) / (self._T1 - self._T2)
+        
+        self._func['K4'] = lambda t: (self._T1*self._a1*self._a2 - self._T2*self._a1*self._a2 \
+                                       - self._T1*self._a1*self._a2*exp(-t/self._T1) \
+                                       + self._T2*self._a1*self._a2*exp(-t/self._T2) \
+                                       + self._T3*self._a1*self._a2*exp(-t/self._T1) \
+                                       - self._T3*self._a1*self._a2*exp(-t/self._T2)) / (self._T1 - self._T2)
+        
+        self._func['K5'] = lambda t: self._T3*self._a1*self._a2*(self._T1 - self._T2 - self._T1*exp(-t/self._T1) \
+                                        + self._T2*exp(-t/self._T2)) / (self._T1 - self._T2)
+        
+        self._func['K6'] = lambda t: self._T1*self._T2*self._a1*self._a2*(self._T1 - self._T2 \
+                                        - self._T1*exp(-(t-self._tau)/self._T1) \
+                                        + self._T2*exp(-(t-self._tau)/self._T2)) / (self._T1 - self._T2)        
+        
+        self._func['K7'] = lambda t: self._func['K3'](t) + self._func['K3'](t-self._tau)
+        
+        self._func['K8'] = lambda t: self._func['K4'](t) + self._func['K4'](t-self._tau)
+        
+        
+    def h(self, t):
+        return self._func[self._system](t)
+    
+    
+    def grid(self, scope):
+        import numpy as np
+        
+        # print('Inside grid f() ...')
+        # simulation scope
+        T, step = scope
+        
+        phia = lambda t: (self.h(t/self._a) - self.h(0)) / (self.h(self._INF) - self.h(0))
+        phi = lambda t: (self.h(t) - self.h(0)) / (self.h(self._INF) - self.h(0))
+
+        X = lambda t: (phi(t) + phia(t)) / 2
+        Y = lambda t: (phi(t) - phia(t)) / 2
+
+        ticks = np.arange(0., T+step, step)
+        x = np.array([X(t) for t in ticks])
+        y = np.array([Y(t) for t in ticks])
+
+        return (x, y)
+		
+
+
+class StrejcModel:
+    
+    def __init__(self, coeffs):
+        self._INF = 10**8 # discrete infinity
+        self._a = 2.0
+        self._tau, self._n, self._k = coeffs        
+        
+    def h(self, t):
+
+        from math import exp, factorial, fsum
+
+        T1 = self._tau / self._n
+
+        res = 0
+        for m in range(self._n):
+            rsum = ((t**m)*exp(-t/T1)) / ((T1**m)*factorial(m))
+            arr = [res, rsum]
+            res = fsum(arr)
+
+        res = self._k*(1 - res)
+
+        return res
+    
+    
+    def grid(self, scope):
+        import numpy as np
+        
+        # simulation scope
+        T, step = scope
+        
+        phia = lambda t: (self.h(t/self._a) - self.h(0)) / (self.h(self._INF) - self.h(0))
+        phi = lambda t: (self.h(t) - self.h(0)) / (self.h(self._INF) - self.h(0))
+
+        X = lambda t: (phi(t) + phia(t)) / 2
+        Y = lambda t: (phi(t) - phia(t)) / 2
+
+        ticks = np.arange(0., T+step, step)
+        x = np.array([X(t) for t in ticks])
+        y = np.array([Y(t) for t in ticks])
+
+        return (x, y)
+		
+
+
+class OscillatorModel:
+    
+    def __init__(self, coeffs, system):
+        from cmath import exp, pi, sinh, cosh, sqrt
+        
+        self._system = system
+        self._INF = 10**8 # discrete infinity
+        
+        self._f0, self._a, self._B, self._T = coeffs
+        
+        w0 = 2*pi*self._f0
+        SQ = sqrt((self._B**2 - 1)*(w0**2))
+        
+        self._func = {}
+        
+        self._func['K9'] = lambda t: ((self._T**2)*self._a*exp(-t/self._T)*SQ \
+                                     + self._T*self._a*sinh(t*SQ)*exp(-self._B*t*w0) \
+                                     - (self._T**2)*self._a*cosh(t*SQ)*exp(-self._B*t*w0)*SQ \
+                                     - self._B*(self._T**2)*w0*sinh(t*SQ)*exp(-self._B*t*w0)) \
+                                     / (SQ*(self._T**2)*(w0**2) - 2*self._B*self._T*w0 + 1)
+        
+        self._func['K10'] = lambda t: -(self._a*cosh(t*SQ)*exp(-self._B*t*w0)*SQ \
+                                      - self._a*SQ + self._B*self._a*w0*sinh(t*SQ)*exp(-self._B*t*w0)) / SQ
+        
+        self._func['K11'] = lambda t: -(cosh(t*SQ)*exp(-self._B*t*w0)*SQ - SQ + self._B*w0*sinh(t*SQ)*exp(-self._B*t*w0)) \
+                                      * (self._a + 2*self._B*self._a*w0) / (SQ*w0**2)
+        
+        self._func['K12'] = lambda t: -(self._T*self._a*cosh(t*SQ)*exp(-self._B*t*w0)*SQ \
+                                      - self._T*self._a*SQ + self._B*self._T*self._a*w0*sinh(t*SQ)*exp(-self._B*t*w0)) \
+                                      / (SQ*w0**2)
+        
+        
+        
+    def h(self, t):
+        return self._func[self._system](t)
+    
+    
+    def grid(self, scope):
+        import numpy as np
+        
+        # simulation scope
+        T, step = scope
+        a = 2.0
+        
+        phia = lambda t: (self.h(t/a) - self.h(0)) / (self.h(self._INF) - self.h(0))
+        phi = lambda t: (self.h(t) - self.h(0)) / (self.h(self._INF) - self.h(0))
+
+        X = lambda t: (phi(t) + phia(t)) / 2
+        Y = lambda t: (phi(t) - phia(t)) / 2
+
+        ticks = np.arange(0., T+step, step)
+        x = np.array([X(t) for t in ticks])
+        y = np.array([Y(t) for t in ticks])
+
+        return (x, y)
+		
